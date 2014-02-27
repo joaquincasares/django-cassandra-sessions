@@ -1,13 +1,13 @@
 from setuptools import setup, find_packages
  
-version = '0.1.0'
+version = '0.2.0'
  
 LONG_DESCRIPTION = """
 django-cassandra-sessions
 =========================
 
 This is a session backend for Django that stores sessions in Cassandra,
-using the pycassa library.  
+using the DataStax Driver for Apache Cassandra.
 
 Installing django-cassandra-sessions
 ------------------------------------
@@ -21,17 +21,30 @@ Installing django-cassandra-sessions
        SESSION_ENGINE = 'cassandra_sessions'
 
 
-3. (optional) Add settings describing where to connect to Cassandra::
+3. Setup the proper schema. For example:
 
-       CASSANDRA_HOSTS = ['127.0.0.1:9160',]
-       CASSANDRA_SESSIONS_KEYSPACE = 'Keyspace1'
-       CASSANDRA_SESSIONS_COLUMN_FAMILY = 'Standard1'
+       CREATE KEYSPACE django_cassandra
+       WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1 };
+
+       CREATE TABLE django_cassandra.sessions (
+           session_key text,
+           session_data map<blob, blob>,
+           PRIMARY KEY (session_key)
+       );
+
+
+4. (optional) Add settings describing where to connect to Cassandra::
+
+       CASSANDRA_HOSTS = ('127.0.0.1',)
+       CASSANDRA_PORT = 9042
+       CASSANDRA_SESSIONS_KEYSPACE = 'django_cassandra'
+       CASSANDRA_SESSIONS_TABLE = 'sessions'
 """
  
 setup(
     name='django-cassandra-sessions',
     version=version,
-    description="This is a session backend for Django that stores sessions in Cassandra, using the pycassa library.",
+    description="This is a session backend for Django that stores sessions in Cassandra, using the DataStax Driver for Apache Cassandra.",
     long_description=LONG_DESCRIPTION,
     classifiers=[
         "Programming Language :: Python",
@@ -46,7 +59,7 @@ setup(
     license='MIT',
     packages=find_packages(),
     zip_safe=False,
-    install_requires=['setuptools', 'pycassa',],
+    install_requires=['setuptools', 'cassandra-driver',],
     include_package_data=True,
     setup_requires=['setuptools_git'],
 )

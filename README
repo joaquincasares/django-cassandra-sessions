@@ -2,7 +2,7 @@ django-cassandra-sessions
 =========================
 
 This is a session backend for Django that stores sessions in Cassandra,
-using the pycassa library.  
+using the DataStax Driver for Apache Cassandra.
 
 Installing django-cassandra-sessions
 ------------------------------------
@@ -16,8 +16,21 @@ Installing django-cassandra-sessions
        SESSION_ENGINE = 'cassandra_sessions'
 
 
-3. (optional) Add settings describing where to connect to Cassandra::
+3. Setup the proper schema. For example:
 
-       CASSANDRA_HOSTS = ['127.0.0.1:9160',]
-       CASSANDRA_SESSIONS_KEYSPACE = 'Keyspace1'
-       CASSANDRA_SESSIONS_COLUMN_FAMILY = 'Standard1'
+       CREATE KEYSPACE django_cassandra
+       WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1 };
+
+       CREATE TABLE django_cassandra.sessions (
+           session_key text,
+           session_data map<blob, blob>,
+           PRIMARY KEY (session_key)
+       );
+
+
+4. (optional) Add settings describing where to connect to Cassandra::
+
+       CASSANDRA_HOSTS = ('127.0.0.1',)
+       CASSANDRA_PORT = 9042
+       CASSANDRA_SESSIONS_KEYSPACE = 'django_cassandra'
+       CASSANDRA_SESSIONS_TABLE = 'sessions'

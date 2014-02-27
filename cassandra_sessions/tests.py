@@ -1,46 +1,52 @@
 r"""
+>>> from importlib import import_module
 >>> from django.conf import settings
->>> from cassandra_sessions import SessionStore as CassandraSession
+>>> SessionStore = import_module(settings.SESSION_ENGINE).SessionStore
 
->>> cassandra_session = CassandraSession()
->>> cassandra_session.modified
+# >>> settings.configure()
+>>> session_store = SessionStore()
+>>> session_store.modified
 False
->>> cassandra_session.get('cat')
->>> cassandra_session['cat'] = "dog"
->>> cassandra_session.modified
+>>> session_store.get('cat')
+>>> session_store['cat'] = "dog"
+>>> session_store.modified
 True
->>> cassandra_session.pop('cat')
+>>> session_store.pop('cat')
 'dog'
->>> cassandra_session.pop('some key', 'does not exist')
+>>> session_store.pop('some key', 'does not exist')
 'does not exist'
->>> cassandra_session.save()
->>> cassandra_session.exists(cassandra_session.session_key)
+>>> session_store.save()
+>>> session_store.exists(session_store.session_key)
 True
->>> cassandra_session.delete(cassandra_session.session_key)
->>> cassandra_session.exists(cassandra_session.session_key)
+>>> session_store.delete(session_store.session_key)
+>>> session_store.exists(session_store.session_key)
 False
 
->>> cassandra_session['foo'] = 'bar'
->>> cassandra_session.save()
->>> cassandra_session.exists(cassandra_session.session_key)
+>>> session_store['foo'] = 'bar'
+>>> session_store.save()
+>>> session_store.exists(session_store.session_key)
 True
->>> prev_key = cassandra_session.session_key
->>> cassandra_session.flush()
->>> cassandra_session.exists(prev_key)
+>>> prev_key = session_store.session_key
+>>> session_store.flush()
+>>> session_store.exists(prev_key)
 False
->>> cassandra_session.session_key == prev_key
+>>> session_store.session_key == prev_key
 False
->>> cassandra_session.modified, cassandra_session.accessed
+>>> session_store.modified, session_store.accessed
 (True, True)
->>> cassandra_session['a'], cassandra_session['b'] = 'c', 'd'
->>> cassandra_session.save()
->>> prev_key = cassandra_session.session_key
->>> prev_data = cassandra_session.items()
->>> cassandra_session.cycle_key()
->>> cassandra_session.session_key == prev_key
+>>> session_store['a'], session_store['b'] = 'c', 'd'
+>>> session_store.save()
+>>> prev_key = session_store.session_key
+>>> prev_data = session_store.items()
+>>> session_store.cycle_key()
+>>> session_store.session_key == prev_key
 False
->>> cassandra_session.items() == prev_data
+>>> session_store.items() == prev_data
 True
+>>> session_store['a']
+'c'
+>>> session_store['b']
+'d'
 """
 
 if __name__ == '__main__':
