@@ -108,10 +108,11 @@ class SessionStore(SessionBase):
         is created (otherwise a CreateError exception is raised). Otherwise,
         save() can update an existing object with the same key.
         """
-        if must_create and self.exists(self.cache_key):
+        cache_key = self.cache_key
+        if must_create and self.exists(cache_key):
             raise CreateError
         self._execute_query(None,
-                            (self.cache_key, self._get_session(no_load=must_create)),
+                            (cache_key, self._get_session(no_load=must_create)),
                             self.get_expiry_age())
 
     def exists(self, session_key):
