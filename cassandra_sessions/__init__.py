@@ -79,7 +79,9 @@ class SessionStore(SessionBase):
         """
         try:
             results = self._execute_query(self._load, (self.cache_key,))
-            return results[0].session_data
+            if results[0].session_data:
+                return results[0].session_data
+            return {}
         except IndexError:
             self.create()
             return {}
