@@ -1,9 +1,38 @@
-import os
 from cassandra import ConsistencyLevel, InvalidRequest
 from cassandra.cluster import Cluster
 
 from django.conf import settings
 from django.contrib.sessions.backends.base import SessionBase, CreateError
+
+
+host = getattr(settings, 'CASSANDRA_HOSTS', ('127.0.0.1',))
+port = getattr(settings, 'CASSANDRA_PORT', 9042)
+keyspace = getattr(settings, 'CASSANDRA_SESSION_KEYSPACE', 'django_cassandra')
+table = getattr(settings, 'CASSANDRA_SESSIONS_TABLE', 'sessions')
+
+cluster = Cluster(host, port=port)
+cassandra_session = cluster.connect()
+
+try:
+    load = cassandra_session.prepare('''
+        SELECT * FROM %s.%s
+        WHERE session_key = ?
+    ''' % (keyspace, table))
+    load.consistency_level = ConsistencyLevel.QUORUM
+
+    delete = cassandra_session.prepare('''
+        DELETE FROM %s.%s
+        WHERE session_key = ?
+    ''' % (keyspace, table))
+    delete.consistency_level = ConsistencyLevel.QUORUM
+except InvalidRequest:
+    import os
+
+    ddl = open(os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            'ddl.cql')).read()
+    raise InvalidRequest(
+        "Column families not properly configured. "
+        "Please use a schema similar to:\n\n%s" % ddl)
 
 
 class SessionStore(SessionBase):
@@ -12,38 +41,8 @@ class SessionStore(SessionBase):
     """
 
     def __init__(self, session_key=None):
-        self._host = getattr(settings, 'CASSANDRA_HOSTS', ('127.0.0.1',))
-        self._port = getattr(settings, 'CASSANDRA_PORT', 9042)
-        self._keyspace = getattr(settings,
-                                 'CASSANDRA_SESSION_KEYSPACE',
-                                 'django_cassandra')
-        self._table = getattr(settings,
-                              'CASSANDRA_SESSIONS_TABLE',
-                              'sessions')
-
-        cluster = Cluster(self._host, port=self._port)
-        self._cassandra_session = cluster.connect()
-
-        try:
-            self._load = self._cassandra_session.prepare('''
-                SELECT * FROM %s.%s
-                WHERE session_key = ?
-            ''' % (self._keyspace, self._table))
-
-            self._delete = self._cassandra_session.prepare('''
-                DELETE FROM %s.%s
-                WHERE session_key = ?
-            ''' % (self._keyspace, self._table))
-
-            self._load.consistency_level = ConsistencyLevel.QUORUM
-            self._delete.consistency_level = ConsistencyLevel.QUORUM
-            self._last_insert = None
-            self._last_insert_ttl = None
-        except InvalidRequest:
-            ddl = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ddl.cql')).read()
-            raise InvalidRequest(
-                "Column families not properly configured. "
-                "Please use a schema similar to:\n\n%s" % ddl)
+        self._last_insert = None
+        self._last_insert_ttl = None
 
         super(SessionStore, self).__init__(session_key)
 
@@ -55,19 +54,19 @@ class SessionStore(SessionBase):
             if self._last_insert_ttl == ttl:
                 prepared_statement = self._last_insert
             else:
-                prepared_statement = self._cassandra_session.prepare('''
+                prepared_statement = cassandra_session.prepare('''
                     INSERT INTO %s.%s
                         (session_key, session_data)
                     VALUES
                         (?, ?)
                     USING TTL %s
-                ''' % (self._keyspace, self._table, ttl))
+                ''' % (keyspace, table, ttl))
                 prepared_statement.consistency_level = ConsistencyLevel.QUORUM
 
                 self._last_insert = prepared_statement
                 self._last_insert_ttl = ttl
 
-        return self._cassandra_session.execute(prepared_statement.bind(bind_tuple))
+        return cassandra_session.execute(prepared_statement.bind(bind_tuple))
 
     @property
     def cache_key(self):
@@ -78,7 +77,7 @@ class SessionStore(SessionBase):
         Loads the session data and returns a dictionary.
         """
         try:
-            results = self._execute_query(self._load, (self.cache_key,))
+            results = self._execute_query(load, (self.cache_key,))
             if results[0].session_data:
                 return results[0].session_data
             return {}
@@ -121,7 +120,7 @@ class SessionStore(SessionBase):
         """
         Returns True if the given session_key already exists.
         """
-        results = self._execute_query(self._load, (session_key,))
+        results = self._execute_query(load, (session_key,))
         if results:
             return True
         else:
@@ -136,7 +135,7 @@ class SessionStore(SessionBase):
             if self.session_key is None:
                 return
             session_key = self.session_key
-        self._execute_query(self._delete, (session_key,))
+        self._execute_query(delete, (session_key,))
 
     @classmethod
     def clear_expired(cls):
